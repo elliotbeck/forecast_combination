@@ -128,6 +128,7 @@ for (vintage in as.list(vintages)) {
   prob <- Problem(Minimize(objective), constraints)
   solution <- solve(prob)
   
+  # add calculated weights to df
   weights[rownames(weights)%in%names_selected, j] <- solution$getValue(w)
   
   j=j+1
