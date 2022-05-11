@@ -75,15 +75,13 @@ rmse_rw <- f_rmse(rw, cpi_xts)
 # check how many predictions are better than rw
 sum(rmse_preds<rmse_rw)
 
-# calculate errors
-errors <- predictions_xts - as.numeric(cpi_xts)
-
 # create sequence of dates
 vintages <- seq(as.Date("2010/1/1"), as.Date("2022/3/1"), "months")
 
 # create empty weights dataframe
-weights <- as.data.frame(matrix(rep(NA, ncol(errors)*length(vintages)), ncol = length(vintages)))
-rownames(weights) <- colnames(errors)
+weights <- as.data.frame(matrix(rep(NA, ncol(predictions_xts)*length(vintages)), 
+                                ncol = length(vintages)))
+rownames(weights) <- colnames(predictions_xts)
 colnames(weights) <- as.character(vintages)
 j=1
 for (vintage in as.list(vintages)) {
@@ -91,8 +89,13 @@ for (vintage in as.list(vintages)) {
   print(vintage)
   
   # create rolling window
-  errors_vintage <- errors[index(errors)<=vintage & 
-                             index(errors)>=vintage-years(rolling_window), ]
+  preds_vintage <- predictions_xts[index(predictions_xts)<=vintage & 
+                             index(predictions_xts)>=vintage-years(rolling_window), ]
+  cpi_vintage <- cpi_xts[index(cpi_xts)<=vintage & 
+                            index(cpi_xts)>=vintage-years(rolling_window), ]
+  
+  # calculate errors
+  errors_vintage <- preds_vintage - as.numeric(cpi_vintage)
   
   # kick out super correlated predictions (>95%)
   # cor_errors_temp <- cov2cor(qis(errors)) 
@@ -116,7 +119,7 @@ for (vintage in as.list(vintages)) {
   length(names_selected)
   
   # extract selected erros and calculate covariance and sample mean
-  preds_selected <- predictions_xts_preselected[, names_selected]
+  preds_selected <- preds_vintage[, names_selected]
   errors_selected <- preds_selected - as.numeric(cpi_xts)
   cov_selected <- qis(errors_selected) # ledoit wolf non linear shrink
   mean_selected <- as.matrix(mean_bs(t(errors_selected))$mean) # bayes stein
