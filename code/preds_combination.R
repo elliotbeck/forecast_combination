@@ -1,0 +1,137 @@
+# set wd
+setwd("~/Documents/Studium/PhD/Forecast_combination")
+
+# load libraries
+library(CVXR)
+library(HDShOP)
+source("code/fredmd.R") 
+source("code/rmse.R")
+source("code/qis.R")
+
+
+# settings
+horizon <- 1
+target <- "CPIAUCSL"
+names <- get(load("data/intersect_names.RData"))
+
+# load results and cpi
+load("data/predictions.RData")
+rawdata <- read.csv("data/vintages/2022-04.csv")
+
+# filter the columns that remain in whole period
+rawdata <- rawdata[, names]
+
+# extract transformation codes and remove first row
+tcode <- rawdata[1, 2:ncol(rawdata)]
+rawdata <- rawdata[-1,]
+
+# change tcode of target to mom changes (case 8)
+tcode[names(tcode)==target] <- 8
+
+# filter rows < startdate
+rawdata$sasdate <- as.Date(rawdata$sasdate, format = "%m/%d/%Y")
+rawdata <- rawdata[rawdata$sasdate > as.Date("1980-01-01"), ]
+
+# make numeric
+rawdata[, 2:ncol(rawdata)] <- apply(rawdata[, 2:ncol(rawdata)], 
+                                    as.numeric, MARGIN = 2)
+
+
+# get rid of rows containing NAs
+rawdata <- rawdata[rowSums(is.na(rawdata))!=ncol(rawdata), ]
+
+# transform data
+data <- fredmd(rawdata, tcode)
+
+# remove rows with NAs due to transformations
+data <- data[complete.cases(data), ]
+
+# assure predictions are numeric
+predictions[, 2:ncol(predictions)] <- apply(predictions[, 2:ncol(predictions)], 
+                                            as.numeric, MARGIN = 2)
+
+# delete last prediction, not yet observed...
+predictions <- predictions[-nrow(predictions), ]
+predictions_xts <- xts(predictions[, 2:ncol(predictions)],
+                       order.by = as.Date(predictions$X1))
+
+# bring to xts format
+cpi_xts <- window(xts(data$CPIAUCSL, order.by = as.Date(data$sasdate)), 
+                  start = index(predictions_xts)[1],
+                  end = index(predictions_xts)[nrow(predictions_xts)])
+plot_ds <- cbind(cpi_xts, predictions_xts[,1400:1450])
+ts_plot(plot_ds)
+
+# include drift term in rw, as cpi series has non zero mean
+rw <- cumsum(cpi_xts)/cumsum(rep(1,nrow(cpi_xts)))
+
+# calculate some rmses
+rmse_preds <- apply(predictions_xts, f_rmse, MARGIN = 2, cpi = cpi_xts)
+
+rmse_equal_weights <- f_rmse(rowMeans(predictions_xts), cpi_xts)
+
+rmse_rw <- f_rmse(rw, cpi_xts)
+
+# check how many predictions are better than rw
+sum(rmse_preds<rmse_rw)
+
+# calculate errors
+errors <- predictions_xts - as.numeric(cpi_xts)
+
+# create sequence of dates
+vintages <- seq(as.Date("2010/1/1"), as.Date("2022/3/1"), "months")
+
+# create empty weights dataframe
+weights <- as.data.frame(matrix(rep(NA, ncol(errors)*length(vintages)), ncol = length(vintages)))
+rownames(weights) <- colnames(errors)
+colnames(weights) <- as.character(vintages)
+j=1
+for (vintage in as.list(vintages)) {
+  print(vintage)
+  # only keep methods that perform better than rw
+  # predictions_xts_preselected <- predictions_xts[,rmse_preds<rmse_rw] # rmse_preds<rmse_rw
+  
+  # remove out of sample predictions
+  errors_vintage <- errors[index(errors)<=vintage, ]
+  
+  # kick out super correlated predictions (>95%)
+  # cor_errors_temp <- cov2cor(qis(errors)) 
+  cor_errors_temp <- cor(errors_vintage)
+  cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
+  diag(cor_errors_temp) <- 0
+  while(max(cor_errors_temp)>0.95){
+    # get maximum name
+    max_cor <- which(cor_errors_temp == max(cor_errors_temp), arr.ind = TRUE)
+    
+    # calculate without maximum correlation column
+    errors_vintage <- errors_vintage[, -max_cor[2]]
+    # cor_errors_temp <- cov2cor(qis(errors))
+    cor_errors_temp <- cor(errors_vintage)
+    cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
+    diag(cor_errors_temp) <- 0
+  }
+  
+  # get names of selected predictions
+  names_selected <- colnames(cor_errors_temp)
+  length(names_selected)
+  
+  # extract selected erros and calculate covariance and sample mean
+  preds_selected <- predictions_xts_preselected[, names_selected]
+  errors_selected <- preds_selected - as.numeric(cpi_xts)
+  cov_selected <- qis(errors_selected) # ledoit wolf non linear shrink
+  mean_selected <- as.matrix(mean_bs(t(errors_selected))$mean) # bayes stein
+  
+  # convex optimization
+  w <- Variable(ncol(errors_selected))
+  objective <- norm2((t(w)%*%mean_selected)) + quad_form(w, cov_selected)
+  constraints <- list(sum(w) == 1, w >= 0)
+  prob <- Problem(Minimize(objective), constraints)
+  solution <- solve(prob)
+  
+  weights[rownames(weights)%in%names_selected, j] <- solution$getValue(w)
+  
+  j=j+1
+}
+
+# save predictions 
+save(weights, file="data/weights.RData")
