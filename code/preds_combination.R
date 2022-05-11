@@ -4,6 +4,7 @@ setwd("~/Documents/Studium/PhD/Forecast_combination")
 # load libraries
 library(CVXR)
 library(HDShOP)
+library(lubridate)
 source("code/fredmd.R") 
 source("code/rmse.R")
 source("code/qis.R")
@@ -13,6 +14,7 @@ source("code/qis.R")
 horizon <- 1
 target <- "CPIAUCSL"
 names <- get(load("data/intersect_names.RData"))
+rolling_window <- 10
 
 # load results and cpi
 load("data/predictions.RData")
@@ -59,8 +61,6 @@ predictions_xts <- xts(predictions[, 2:ncol(predictions)],
 cpi_xts <- window(xts(data$CPIAUCSL, order.by = as.Date(data$sasdate)), 
                   start = index(predictions_xts)[1],
                   end = index(predictions_xts)[nrow(predictions_xts)])
-plot_ds <- cbind(cpi_xts, predictions_xts[,1400:1450])
-ts_plot(plot_ds)
 
 # include drift term in rw, as cpi series has non zero mean
 rw <- cumsum(cpi_xts)/cumsum(rep(1,nrow(cpi_xts)))
@@ -87,12 +87,12 @@ rownames(weights) <- colnames(errors)
 colnames(weights) <- as.character(vintages)
 j=1
 for (vintage in as.list(vintages)) {
+  # get status updates
   print(vintage)
-  # only keep methods that perform better than rw
-  # predictions_xts_preselected <- predictions_xts[,rmse_preds<rmse_rw] # rmse_preds<rmse_rw
   
-  # remove out of sample predictions
-  errors_vintage <- errors[index(errors)<=vintage, ]
+  # create rolling window
+  errors_vintage <- errors[index(errors)<=vintage & 
+                             index(errors)>=vintage-years(rolling_window), ]
   
   # kick out super correlated predictions (>95%)
   # cor_errors_temp <- cov2cor(qis(errors)) 
