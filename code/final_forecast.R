@@ -13,7 +13,6 @@ source("code/qis.R")
 horizon <- 1
 target <- "CPIAUCSL"
 names <- get(load("data/intersect_names.RData"))
-rolling_window <- 10
 
 # load results and cpi
 load("data/predictions.RData")
