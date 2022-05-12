@@ -5,20 +5,20 @@ setwd("~/Documents/Studium/PhD/Forecast_combination")
 library(CVXR)
 library(HDShOP)
 library(lubridate)
+library(xts)
 source("code/fredmd.R") 
-source("code/rmse.R")
 source("code/qis.R")
-
 
 # settings
 horizon <- 1
 target <- "CPIAUCSL"
 names <- get(load("data/intersect_names.RData"))
-rolling_window <- 10
+rolling_window <- 5
 
 # load results and cpi
 load("data/predictions.RData")
 rawdata <- read.csv("data/vintages/2022-04.csv")
+load("data/weights_final.RData")
 
 # filter the columns that remain in whole period
 rawdata <- rawdata[, names]
@@ -62,19 +62,6 @@ cpi_xts <- window(xts(data$CPIAUCSL, order.by = as.Date(data$sasdate)),
                   start = index(predictions_xts)[1],
                   end = index(predictions_xts)[nrow(predictions_xts)])
 
-# include drift term in rw, as cpi series has non zero mean
-rw <- cumsum(cpi_xts)/cumsum(rep(1,nrow(cpi_xts)))
-
-# calculate some rmses
-rmse_preds <- apply(predictions_xts, f_rmse, MARGIN = 2, cpi = cpi_xts)
-
-rmse_equal_weights <- f_rmse(rowMeans(predictions_xts), cpi_xts)
-
-rmse_rw <- f_rmse(rw, cpi_xts)
-
-# check how many predictions are better than rw
-sum(rmse_preds<rmse_rw)
-
 # create sequence of dates
 vintages <- seq(as.Date("2010/1/1"), as.Date("2022/3/1"), "months")
 
@@ -98,14 +85,14 @@ for (vintage in as.list(vintages)) {
   errors_vintage <- preds_vintage - as.numeric(cpi_vintage)
   
   # kick out super correlated predictions (>95%)
-  # cor_errors_temp <- cov2cor(qis(errors)) 
+  # cor_errors_temp <- cov2cor(qis(errors))
   cor_errors_temp <- cor(errors_vintage)
   cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
   diag(cor_errors_temp) <- 0
   while(max(cor_errors_temp)>0.95){
     # get maximum name
     max_cor <- which(cor_errors_temp == max(cor_errors_temp), arr.ind = TRUE)
-    
+
     # calculate without maximum correlation column
     errors_vintage <- errors_vintage[, -max_cor[2]]
     # cor_errors_temp <- cov2cor(qis(errors))
@@ -113,21 +100,25 @@ for (vintage in as.list(vintages)) {
     cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
     diag(cor_errors_temp) <- 0
   }
-  
+
   # get names of selected predictions
   names_selected <- colnames(cor_errors_temp)
   length(names_selected)
+  # names_selected <- rownames(weights_final)[!is.na(weights_final[, colnames(weights_final)==vintage])]
   
   # extract selected erros and calculate covariance and sample mean
   preds_selected <- preds_vintage[, names_selected]
-  errors_selected <- preds_selected - as.numeric(cpi_xts)
-  cov_selected <- qis(errors_selected) # ledoit wolf non linear shrink
-  mean_selected <- as.matrix(mean_bs(t(errors_selected))$mean) # bayes stein
+  errors_selected <- preds_selected - as.numeric(cpi_vintage)
+  # cov_selected <- qis(errors_selected) # ledoit wolf non linear shrink
+  cov_selected <- cov(errors_selected) # sample cov
+  # mean_selected <- as.matrix(mean_bs(t(errors_selected))$mean) # bayes stein
+  mean_selected <- colMeans(errors_selected) # sample mean
   
   # convex optimization
   w <- Variable(ncol(errors_selected))
   objective <- norm2((t(w)%*%mean_selected)) + quad_form(w, cov_selected)
-  constraints <- list(sum(w) == 1, w >= 0)
+  # constraints <- list(sum(w) == 1, w>=0)
+  constraints <- list(sum(w) == 1, w>=0)
   prob <- Problem(Minimize(objective), constraints)
   solution <- solve(prob)
   
@@ -138,4 +129,4 @@ for (vintage in as.list(vintages)) {
 }
 
 # save predictions 
-save(weights, file="data/weights.RData")
+save(weights, file="data/weights_rolling5.RData")
