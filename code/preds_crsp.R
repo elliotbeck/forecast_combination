@@ -9,8 +9,8 @@ library(doParallel)
 setwd("~/Documents/Studium/PhD/Forecast_combination")
 
 # read daily data
-data = read.csv("Data/CRSPdaily.csv", stringsAsFactors = FALSE)
-data_factors = read.csv("Data/FFdaily.csv", stringsAsFactors = FALSE)
+data = read.csv("~/Desktop/CRSPdaily.csv", stringsAsFactors = FALSE)
+data_factors = read.csv("~/Desktop/FFdaily.csv", stringsAsFactors = FALSE)
 
 # choose subset of columns and filter NAs
 data = data[,c("PERMNO", "date", "RET")]
