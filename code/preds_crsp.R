@@ -7,14 +7,18 @@ library(glmnet)
 library(xgboost)
 library(ranger)
 library(caret)
+library(parallel)
+
+#detect and set ncores 
+ncores <- detectCores() - 1
 
 # set working directory
 setwd("~/Documents/Studium/PhD/Forecast_combination")
 
 # settings
-rolling_window <- 5 # in years
+rolling_window <- 10 # in years
 horizon <- 1
-num_lags <- 5
+num_lags <- 12
 
 # set up glmnet grid
 grid_glmnet <- expand.grid(
@@ -40,39 +44,48 @@ grid_rf <- expand.grid(
 )
 
 # read daily data
-data = read.csv("data/CRSP/CRSPdaily.csv", stringsAsFactors = FALSE)
-data_factors = read.csv("data/CRSP/FFdaily.csv", stringsAsFactors = FALSE)
+data = read.csv("data/CRSP/CRSPmonthly.csv", stringsAsFactors = FALSE)
+data_factors = read.csv("data/CRSP/FFmonthly.csv", stringsAsFactors = FALSE)
 
 # choose subset of columns and filter NAs
 data = data[,c("PERMNO", "date", "RET")]
 # length(unique(data$PERMNO)) # 24533 companies in total
-data$date = as.Date(as.character(data$date), "%Y%m%d")
+data$date = round_date(as.Date(as.character(data$date), "%Y%m%d"),
+                       unit = "month")
 data = data[!(data$RET=="C" | as.character(data$RET)==""),]
 
 # choose subset of columns and filter NAs
-data_factors$Date = as.Date(as.character(data_factors$Date), "%Y%m%d")
+# data_factors$Date = as.Date(as.character(data_factors$Date), "%Y%m%d")
+data_factors$Date = as.Date(paste0(data_factors$Date, "01"), "%Y%m%d") # for monthly data
 
 # get unique comapny numbers
 permno = unique(data$PERMNO)
+permno <- permno
 
-# define function to get predictions per vintage
+# # define function to get predictions per vintage
+vintages <- sort(unique(data$date))
 vintage_function <- function(vintage){
+# for (vintage in as.list(vintages)) {
   vintage = as.Date(vintage)
   dates_bench = subset(data_factors$Date, data_factors$Date>=vintage & 
                          data_factors$Date<=vintage+years(rolling_window))
-  # set up results dataframe
-  predictions_vintage <- data.frame(matrix(ncol = nrow(grid_glmnet)+
+  # set up predictions dataframe
+  predictions_vintage <- data.frame(matrix(ncol = nrow(grid_glmnet) +
                                              nrow(grid_rf)+nrow(grid_xgboost)+2
-                                           , nrow = 0))
+                                           ,nrow = 0))
   x <- c("Date", "permono", 
-         paste0("glmnet_", seq(1:nrow(grid_glmnet))), 
-         paste0("xgboost_", seq(1:nrow(grid_xgboost))), 
+         paste0("glmnet_", seq(1:nrow(grid_glmnet))),
+         paste0("xgboost_", seq(1:nrow(grid_xgboost))),
          paste0("rf_", seq(1:nrow(grid_rf))))
   colnames(predictions_vintage) <- x
   
   # set iteraator for prediciton saving
   k=1
   for (j in permno) {
+    # print permno
+    print(j)
+    
+    # extract data accodring to permno
     dates = data$date[data$PERMNO==j]
     dates_subset = subset(dates, dates>=vintage & dates<=as.Date(vintage)+years(rolling_window))
     
@@ -90,8 +103,7 @@ vintage_function <- function(vintage){
       
       # bind all the features
       x <- cbind(returns_lagged, factors_lagged)
-      # x <- x[complete.cases(x), ]
-      
+
       # define target
       y <- returns
       
@@ -124,7 +136,7 @@ vintage_function <- function(vintage){
 
       # set up empty xgb vector
       preds_xgb <- vector()
-      
+
       # produce forecasts
       for (i in 1:nrow(grid_xgboost)) {
         xgb_fit <- xgboost(data = as.matrix(select(training_ds, -"y")),
@@ -135,34 +147,35 @@ vintage_function <- function(vintage){
                            gamma = grid_xgboost$gamma[i],
                            colsample_bytree = grid_xgboost$colsample_bytree[i],
                            min_child_weight = grid_xgboost$min_child_weight[i],
-                           subsample = grid_xgboost$subsample[i], 
+                           subsample = grid_xgboost$subsample[i],
                            verbose = 0)
+                           # nthread = ncores)
         preds_xgb[i] <- predict(xgb_fit, as.matrix(x_last_obs))
       }
-      
+
       # set up empty rf vector
       preds_rf <- vector()
-      
+
       # produce forecasts
       for (i in 1:nrow(grid_rf)) {
-        rf_fit <- ranger(x = as.matrix(select(training_ds, -"y")), 
-                         y = select(training_ds, "y")$y, 
+        rf_fit <- ranger(x = as.matrix(select(training_ds, -"y")),
+                         y = select(training_ds, "y")$y,
                          num.trees = grid_rf$num.trees[i],
                          mtry = grid_rf$mtry[i])
+                         # num.threads = ncores)
         preds_rf[i] <- predict(rf_fit, as.matrix(x_last_obs))$predictions
       }
       predictions_vintage[k, ] <- c(paste0(max(as.Date(dates_subset))), 
                                     permno[j], preds_glm, preds_xgb, preds_rf)
       k=k+1
-      print(k)
     }
   }
   print(vintage)
-  save(predictions_vintage, file=paste0("data/CRSP/vintages/", 
-                                        paste0(max(as.Date(dates_subset))),".RData"))
+  save(predictions_vintage, file=paste0("data/CRSP/vintages_monthly/", 
+                                        max(dates_bench),".RData"))
 }
 
-# run function in parallel with mclapply
-# vintages = as.character(seq(from = as.Date("1964-01-01"), to = as.Date("2015-01-01"), by= "year"))
-vintages <- unique(data$date)[unique(data$date) >= as.Date("1980-01-01")]
+# # run function in parallel with mclapply
+# # vintages = as.character(seq(from = as.Date("1964-01-01"), to = as.Date("2015-01-01"), by= "year"))
+# vintages <- unique(data$date)[unique(data$date) >= as.Date("1980-01-01")]
 mclapply(vintages, vintage_function, mc.cores = 1)
