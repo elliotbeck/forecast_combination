@@ -1,70 +1,168 @@
 # load libraries
 library(lubridate)
 library(rlist)
-library(sandwich)
 library(doParallel)
-
+library(dplyr)
+library(glmnet)
+library(xgboost)
+library(ranger)
+library(caret)
 
 # set working directory
 setwd("~/Documents/Studium/PhD/Forecast_combination")
 
+# settings
+rolling_window <- 5 # in years
+horizon <- 1
+num_lags <- 5
+
+# set up glmnet grid
+grid_glmnet <- expand.grid(
+  alpha = seq(0,1,0.1),
+  lambda = seq(0.00001, 1, length = 50))
+
+# set up xgboost grid
+grid_xgboost <- expand.grid(
+  nrounds = seq(from = 100, to = 500, by = 100),
+  eta = c(0.025, 0.1, 0.3),
+  max_depth = seq(from = 2, to = 20, by = 4),
+  gamma = 0,
+  colsample_bytree = seq(from = 0.5, to = 0.9, by = 0.2),
+  min_child_weight = 1,
+  subsample = 1
+)
+
+# my tuneGrid object:
+grid_rf <- expand.grid(
+  num.trees = c(100, 500),
+  mtry = seq(1,21,2),
+  min.node.size = seq(1,6,1)
+)
+
 # read daily data
-data = read.csv("~/Desktop/CRSPdaily.csv", stringsAsFactors = FALSE)
-data_factors = read.csv("~/Desktop/FFdaily.csv", stringsAsFactors = FALSE)
+data = read.csv("data/CRSP/CRSPdaily.csv", stringsAsFactors = FALSE)
+data_factors = read.csv("data/CRSP/FFdaily.csv", stringsAsFactors = FALSE)
 
 # choose subset of columns and filter NAs
 data = data[,c("PERMNO", "date", "RET")]
-length(unique(data$PERMNO)) # 24533 companies in total
+# length(unique(data$PERMNO)) # 24533 companies in total
 data$date = as.Date(as.character(data$date), "%Y%m%d")
 data = data[!(data$RET=="C" | as.character(data$RET)==""),]
 
 # choose subset of columns and filter NAs
 data_factors$Date = as.Date(as.character(data_factors$Date), "%Y%m%d")
 
-# load als function
-load("WLS/wls.als.RData")
-
-# define function to estimate ols regressions
+# get unique comapny numbers
 permno = unique(data$PERMNO)
+
+# define function to get predictions per vintage
 vintage_function <- function(vintage){
   vintage = as.Date(vintage)
-  dates_bench = subset(data_factors$Date, data_factors$Date>=vintage & data_factors$Date<=vintage+years(5))
-  regressions_res_factor <- list()
+  dates_bench = subset(data_factors$Date, data_factors$Date>=vintage & 
+                         data_factors$Date<=vintage+years(rolling_window))
+  # set up results dataframe
+  predictions_vintage <- data.frame(matrix(ncol = nrow(grid_glmnet)+
+                                             nrow(grid_rf)+nrow(grid_xgboost)+2
+                                           , nrow = 0))
+  x <- c("Date", "permono", 
+         paste0("glmnet_", seq(1:nrow(grid_glmnet))), 
+         paste0("xgboost_", seq(1:nrow(grid_xgboost))), 
+         paste0("rf_", seq(1:nrow(grid_rf))))
+  colnames(predictions_vintage) <- x
   
+  # set iteraator for prediciton saving
+  k=1
   for (j in permno) {
     dates = data$date[data$PERMNO==j]
-    dates_subset = subset(dates, dates>=vintage & dates<=as.Date(vintage)+years(5))
+    dates_subset = subset(dates, dates>=vintage & dates<=as.Date(vintage)+years(rolling_window))
     
     if(length(dates_subset)==length(dates_bench)){
+      # set iterator for dataframe
+      
+      # get returns and factors according to vintage
       returns = data[data$PERMNO==j,]
       returns = as.numeric(returns$RET[returns$date %in% dates_subset])
-      exc_returns = returns - data_factors$RF[data_factors$Date %in% dates_subset]
       factors = data_factors[data_factors$Date %in% dates_subset, 2:6]/100
       
-      #get OLS HC results
-      fit = lm(exc_returns~factors$SMB+factors$HML+factors$RMW+factors$CMA, x=TRUE, y=TRUE)
-      sumry = as.data.frame(as.data.frame(summary(fit)[["coefficients"]])[,1])
-      colnames(sumry) <- "ols_coef"
-      sumry$ols_HC3_std = as.numeric(diag(vcovHC(fit)))
+      # get lagged features
+      returns_lagged <- cbind(sapply(0:(num_lags-1), lag, x=returns))
+      factors_lagged <- cbind(as.data.frame(lapply(0:(num_lags-1), lag, x=factors)))
       
-      # get ALS/WLS results
-      result_als_wls = lm.wls.als(fit.ols=fit, spec.wool = TRUE)
+      # bind all the features
+      x <- cbind(returns_lagged, factors_lagged)
+      # x <- x[complete.cases(x), ]
       
-      sumry$wls_coef <- summary(result_als_wls$fit.wls)$coefficients[,1]
-      sumry$wls_HC3_std <- as.numeric(diag(vcovHC(result_als_wls$fit.wls)))
+      # define target
+      y <- returns
       
-      sumry$als_coef <- summary(result_als_wls$fit.als)$coefficients[,1]
-      sumry$als_HC3_std <- as.numeric(diag(vcovHC(result_als_wls$fit.als)))
-      # # append results to list
-      regressions_res_factor = list.append(regressions_res_factor, cbind(sumry, j))
-      print(regressions_res_factor)
+      # bind x and y and get training and oos ds
+      ds <- cbind(y,x)
+      training_ds <- ds[-nrow(ds), ]
+      y_true <- ds[nrow(ds), "y"]
+      
+      # lead target for forecasting exercise
+      training_ds$y <- lead(training_ds$y, horizon)
+      
+      # extract last observation for final forecast
+      x_last_obs <- select(training_ds, -"y")
+      x_last_obs <- x_last_obs[nrow(x_last_obs), ]
+      
+      # filter complete cases
+      training_ds <- training_ds[complete.cases(training_ds),]
+      
+      # set up empty glm vector
+      preds_glm <- vector()
+      
+      # produce forecasts
+      for (i in 1:nrow(grid_glmnet)) {
+        glm_fit <- glmnet(x = as.matrix(select(training_ds, -"y")), 
+                          y = select(training_ds, "y")$y, 
+                          alpha = grid_glmnet$alpha[i],
+                          lambda = grid_glmnet$lambda[i])
+        preds_glm[i] <- predict(glm_fit, as.matrix(x_last_obs))
+      }
+
+      # set up empty xgb vector
+      preds_xgb <- vector()
+      
+      # produce forecasts
+      for (i in 1:nrow(grid_xgboost)) {
+        xgb_fit <- xgboost(data = as.matrix(select(training_ds, -"y")),
+                           label = select(training_ds, "y")$y,
+                           nrounds = grid_xgboost$nrounds[i],
+                           eta = grid_xgboost$eta[i],
+                           max_depth = grid_xgboost$max_depth[i],
+                           gamma = grid_xgboost$gamma[i],
+                           colsample_bytree = grid_xgboost$colsample_bytree[i],
+                           min_child_weight = grid_xgboost$min_child_weight[i],
+                           subsample = grid_xgboost$subsample[i], 
+                           verbose = 0)
+        preds_xgb[i] <- predict(xgb_fit, as.matrix(x_last_obs))
+      }
+      
+      # set up empty rf vector
+      preds_rf <- vector()
+      
+      # produce forecasts
+      for (i in 1:nrow(grid_rf)) {
+        rf_fit <- ranger(x = as.matrix(select(training_ds, -"y")), 
+                         y = select(training_ds, "y")$y, 
+                         num.trees = grid_rf$num.trees[i],
+                         mtry = grid_rf$mtry[i])
+        preds_rf[i] <- predict(rf_fit, as.matrix(x_last_obs))$predictions
+      }
+      predictions_vintage[k, ] <- c(paste0(max(as.Date(dates_subset))), 
+                                    permno[j], preds_glm, preds_xgb, preds_rf)
+      k=k+1
+      print(k)
     }
   }
   print(vintage)
-  save(regressions_res_factor, file=paste0("~/Desktop/R Code/Results/results_factors_", vintage,".RData"))
+  save(predictions_vintage, file=paste0("data/CRSP/vintages/", 
+                                        paste0(max(as.Date(dates_subset))),".RData"))
 }
 
 # run function in parallel with mclapply
-vintages = as.character(seq(from = as.Date("1964-01-01"), to = as.Date("2015-01-01"), by= "year"))
-
+# vintages = as.character(seq(from = as.Date("1964-01-01"), to = as.Date("2015-01-01"), by= "year"))
+vintages <- unique(data$date)[unique(data$date) >= as.Date("1980-01-01")]
 mclapply(vintages, vintage_function, mc.cores = 1)
