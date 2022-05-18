@@ -3,11 +3,12 @@ setwd("~/Documents/Studium/PhD/Forecast_combination")
 
 # load libraries
 library(CVXR)
-library(HDShOP)
 library(lubridate)
 library(xts)
 source("code/fredmd.R") 
 source("code/qis.R")
+source("code/mean_bs.R")
+
 
 # settings
 horizon <- 1
@@ -84,27 +85,27 @@ for (vintage in as.list(vintages)) {
   # calculate errors
   errors_vintage <- preds_vintage - as.numeric(cpi_vintage)
   
-  # kick out super correlated predictions (>95%)
-  # cor_errors_temp <- cov2cor(qis(errors))
-  cor_errors_temp <- cor(errors_vintage)
-  cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
-  diag(cor_errors_temp) <- 0
-  while(max(cor_errors_temp)>0.95){
-    # get maximum name
-    max_cor <- which(cor_errors_temp == max(cor_errors_temp), arr.ind = TRUE)
-
-    # calculate without maximum correlation column
-    errors_vintage <- errors_vintage[, -max_cor[2]]
-    # cor_errors_temp <- cov2cor(qis(errors))
-    cor_errors_temp <- cor(errors_vintage)
-    cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
-    diag(cor_errors_temp) <- 0
-  }
-
-  # get names of selected predictions
-  names_selected <- colnames(cor_errors_temp)
-  length(names_selected)
-  # names_selected <- rownames(weights_final)[!is.na(weights_final[, colnames(weights_final)==vintage])]
+  # # kick out super correlated predictions (>95%)
+  # # cor_errors_temp <- cov2cor(qis(errors))
+  # cor_errors_temp <- cor(errors_vintage)
+  # cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
+  # diag(cor_errors_temp) <- 0
+  # while(max(cor_errors_temp)>0.95){
+  #   # get maximum name
+  #   max_cor <- which(cor_errors_temp == max(cor_errors_temp), arr.ind = TRUE)
+  # 
+  #   # calculate without maximum correlation column
+  #   errors_vintage <- errors_vintage[, -max_cor[2]]
+  #   # cor_errors_temp <- cov2cor(qis(errors))
+  #   cor_errors_temp <- cor(errors_vintage)
+  #   cor_errors_temp[upper.tri(cor_errors_temp)] <- 0
+  #   diag(cor_errors_temp) <- 0
+  # }
+  # 
+  # # get names of selected predictions
+  # names_selected <- colnames(cor_errors_temp)
+  # length(names_selected)
+  names_selected <- rownames(weights_final)[!is.na(weights_final[, colnames(weights_final)==vintage])]
   
   # extract selected erros and calculate covariance and sample mean
   preds_selected <- preds_vintage[, names_selected]
@@ -118,7 +119,7 @@ for (vintage in as.list(vintages)) {
   w <- Variable(ncol(errors_selected))
   objective <- norm2((t(w)%*%mean_selected)) + quad_form(w, cov_selected)
   # constraints <- list(sum(w) == 1, w>=0)
-  constraints <- list(sum(w) == 1, w>=0)
+  constraints <- list(sum(w) == 1, norm1(w)<=1.5)
   prob <- Problem(Minimize(objective), constraints)
   solution <- solve(prob)
   
@@ -129,4 +130,4 @@ for (vintage in as.list(vintages)) {
 }
 
 # save predictions 
-save(weights, file="data/weights_rolling5.RData")
+save(weights, file="data/weights_norm1_1.5.RData")

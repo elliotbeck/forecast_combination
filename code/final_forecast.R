@@ -19,7 +19,7 @@ load("data/predictions.RData")
 rawdata <- read.csv("data/vintages/2022-04.csv")
 
 # load weights
-load("~/Documents/Studium/PhD/Forecast_combination/data/weights_sum1_sample.RData")
+load("~/Documents/Studium/PhD/Forecast_combination/data/weights_norm1_1.5.RData")
 
 # filter the columns that remain in whole period
 rawdata <- rawdata[, names]
@@ -117,3 +117,4 @@ f_rmse(rw, cpi_xts)
 f_rmse(final_forecast, cpi_xts)
 f_rmse(mean_forecast, cpi_xts)
 f_rmse(mean_forecast_naive, cpi_xts)
+
