@@ -40,3 +40,6 @@ vignettes/*.pdf
 
 # Ignore data path
 data/
+
+# Ignore linter option
+.lintr
