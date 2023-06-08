@@ -7,13 +7,13 @@ library(ggplot2)
 source("src/rmse.R")
 source("src/qis.R")
 
-#  Load benchmark data
+# Load benchmark data
 data <- fetch_data("225_puma8NH")
 
 # Set simulation parameters
-set.seed(66)
+set.seed(666)
 n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
-n_sim <- 2
+n_sim <- 1000
 
 # Set up dataframe to store results
 results <- data.frame(
@@ -25,7 +25,7 @@ results <- data.frame(
     rmse_rf_weighted_shrinkage = rep(NA, length(n_obs) * n_sim)
 )
 
-#  Run simulations
+# Run simulations
 k <- 1
 for (i in n_obs) {
     for (j in 1:n_sim) {
@@ -43,8 +43,7 @@ for (i in n_obs) {
         # Random forest benchmark with ranger
         rf_model <- ranger(
             target ~ .,
-            data = train_data,
-            min.node.size = 1
+            data = train_data
         )
 
         rf_predictions <- predict(
@@ -67,8 +66,8 @@ for (i in n_obs) {
 
         # Calculate weights without shrinkage
         w <- Variable(ncol(rf_residuals))
-        objective <- quad_form(w, cov_matrix)
-        # objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix)
+        # objective <- quad_form(w, cov_matrix)
+        objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix)
         constraints <- list(sum(w) == 1)
         prob <- Problem(Minimize(objective), constraints)
         solution <- solve(prob)
@@ -86,8 +85,8 @@ for (i in n_obs) {
 
         # Calculate weights with shrinkage
         w <- Variable(ncol(rf_residuals))
-        objective <- quad_form(w, cov_matrix_shrinkage)
-        # objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix_shrinkage)
+        # objective <- quad_form(w, cov_matrix_shrinkage)
+        objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix_shrinkage)
         constraints <- list(sum(w) == 1)
         prob <- Problem(Minimize(objective), constraints)
         solution <- solve(prob)
@@ -124,8 +123,8 @@ results_mean <- aggregate(
     mean
 )
 # Save results
-save(results_mean, file = "results/weighted_rf_mean.RData")
-save(results, file = "results/weighted_rf_all.RData")
+save(results_mean, file = "results/weighted_rf_mean_unbiased.RData")
+save(results, file = "results/weighted_rf_all_unbiased.RData")
 
 # # Load the results
 # load("results/weighted_rf_mean.RData")
