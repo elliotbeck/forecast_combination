@@ -1,4 +1,4 @@
 # calculate rmse
-rmse <- function(x, cpi) {
-  (mean((x - cpi)^2))^0.5
+rmse <- function(y, y_pred) {
+  (mean((y - y_pred)^2))^0.5
 }
