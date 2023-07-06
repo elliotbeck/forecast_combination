@@ -14,7 +14,7 @@ datasets <- read.table("metadata/datasets.txt", header = TRUE)
 set.seed(1)
 n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
 n_sim <- 50
-kappas <- list(1, 1.6, 100)
+kappas <- list(1, 1.5, 2, 2.5)
 
 # Run simulations per dataset
 for (dataset in datasets$datasets) {
@@ -26,12 +26,13 @@ for (dataset in datasets$datasets) {
     n_obs = rep(NA, length(n_obs) * n_sim),
     rmse_rf = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_1 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_1_6 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_100 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_1_5 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_2 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_2.5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_1 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_1_6 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_100 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_best = rep(NA, length(n_obs) * n_sim)
+    rmse_rf_weighted_shrinkage_1_5 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_2 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_2.5 = rep(NA, length(n_obs) * n_sim)
   )
 
   # Run simulations
@@ -95,7 +96,6 @@ for (dataset in datasets$datasets) {
 
       # Bind all results together
       results_all_train <- c(results_sample[1, ], results_nls[1, ])
-      k_star <- which.min(results_all_train)
       results_all_test <- c(results_sample[2, ], results_nls[2, ])
 
       #  Store results
@@ -108,7 +108,8 @@ for (dataset in datasets$datasets) {
         results_all_test[4],
         results_all_test[5],
         results_all_test[6],
-        results_all_test[k_star]
+        results_all_test[7],
+        results_all_test[8]
       )
       k <- k + 1
       print(k)
