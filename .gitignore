@@ -46,3 +46,6 @@ data/
 
 # Ignore results folder
 results/
+
+# Ignore cluster output
+nohup.out
