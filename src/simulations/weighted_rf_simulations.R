@@ -1,19 +1,20 @@
 # Libraries
 library(ranger)
 library(pmlbr)
-library(CVXR)
 library(reshape)
 library(ggplot2)
 source("src/utils/rmse.R")
 source("src/utils/qis.R")
+source("src/utils/optimizer.R")
 
 # Load names of datasets
 datasets <- read.table("metadata/datasets.txt", header = TRUE)
 
 # Set simulation parameters
 set.seed(1)
-n_obs <- list(200, 400, 600, 1000, 2000, 3000, 4000, 5000)
+n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
 n_sim <- 50
+kappas <- list(1, 1.6, 100)
 
 # Run simulations per dataset
 for (dataset in datasets$datasets) {
@@ -23,11 +24,14 @@ for (dataset in datasets$datasets) {
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    rmse_naive = rep(NA, length(n_obs) * n_sim),
-    rmse_lm = rep(NA, length(n_obs) * n_sim),
     rmse_rf = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage = rep(NA, length(n_obs) * n_sim)
+    rmse_rf_weighted_1 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_1_6 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_100 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_1 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_1_6 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_100 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_best = rep(NA, length(n_obs) * n_sim)
   )
 
   # Run simulations
@@ -41,58 +45,70 @@ for (dataset in datasets$datasets) {
       train_data <- data[1:i, ]
       test_data <- data[(i + 1):(i + 1000), ]
 
-      # Linear regression benchmark
-      lm_model <- lm(target ~ ., data = train_data)
-      lm_predictions <- predict(lm_model, test_data)
-
       # Random forest benchmark with ranger
       rf_model <- ranger(target ~ ., data = train_data)
       rf_predictions <- predict(rf_model, test_data)$predictions
 
-      #  Weighted random forest
+      # Reandom forest predictions and residuals on train data
       rf_predictions_train_all <- predict(
-        rf_model, train_data,
+        rf_model,
+        train_data,
         predict.all = TRUE
       )$predictions
       rf_residuals_train <- train_data$target - rf_predictions_train_all
+
+      # Random forest predictions on test data
+      rf_predictions_test_all <- predict(
+        rf_model,
+        test_data,
+        predict.all = TRUE
+      )$predictions
 
       # Calculate covariance matrix and mean vector of residuals
       mean_vector <- colMeans(rf_residuals_train)
       cov_matrix <- cov(rf_residuals_train)
       cov_matrix_shrinkage <- qis(rf_residuals_train)
 
-      # Calculate weights without shrinkage
-      w <- Variable(ncol(rf_residuals_train))
-      objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix)
-      constraints <- list(sum(w) == 1)
-      prob <- Problem(Minimize(objective), constraints)
-      solution <- solve(prob)
+      # Get rmse for all kappas and sample cov matrix
+      results_sample <- sapply(
+        kappas,
+        weight_optimizer,
+        mean_vector = mean_vector,
+        cov_matrix = cov_matrix,
+        predictions_train = rf_predictions_train_all,
+        predictions_test = rf_predictions_test_all,
+        labels_train = train_data$target,
+        labels_test = test_data$target
+      )
 
-      #  Weighted random forest predictions
-      rf_predictions_test_all <- predict(rf_model, test_data, predict.all = TRUE)$predictions
+      # Get rmse for all kappas and nls cov matrix
+      results_nls <- sapply(
+        kappas,
+        weight_optimizer,
+        mean_vector = mean_vector,
+        cov_matrix = cov_matrix_shrinkage,
+        predictions_train = rf_predictions_train_all,
+        predictions_test = rf_predictions_test_all,
+        labels_train = train_data$target,
+        labels_test = test_data$target
+      )
 
-      # #  Multiply predictions by weights per row
-      rf_predictions_weighted <- as.matrix(rf_predictions_test_all) %*% solution$getValue(w)
-
-      # Calculate weights with shrinkage
-      w <- Variable(ncol(rf_residuals_train))
-      objective <- norm2((t(w) %*% mean_vector)) + quad_form(w, cov_matrix_shrinkage)
-      constraints <- list(sum(w) == 1)
-      prob <- Problem(Minimize(objective), constraints)
-      solution <- solve(prob)
-
-      # Shrinkage weighted random forest predictions
-      rf_predictions_weighted_nls <- as.matrix(rf_predictions_test_all) %*%
-        solution$getValue(w)
+      # Bind all results together
+      results_all_train <- c(results_sample[1, ], results_nls[1, ])
+      k_star <- which.min(results_all_train)
+      results_all_test <- c(results_sample[2, ], results_nls[2, ])
 
       #  Store results
       results[k, ] <- c(
         i,
-        rmse(mean(train_data$target), test_data$target),
-        rmse(lm_predictions, test_data$target),
         rmse(rf_predictions, test_data$target),
-        rmse(rf_predictions_weighted, test_data$target),
-        rmse(rf_predictions_weighted_nls, test_data$target)
+        results_all_test[1],
+        results_all_test[2],
+        results_all_test[3],
+        results_all_test[4],
+        results_all_test[5],
+        results_all_test[6],
+        results_all_test[k_star]
       )
       k <- k + 1
       print(k)
@@ -101,13 +117,17 @@ for (dataset in datasets$datasets) {
 
   # Get mean results
   results_mean <- aggregate(
-    results[, 2:6],
+    results[, 2:ncol(results)],
     list(results$n_obs),
     mean
   )
   # Save results
-  save(results, file = paste0("results/weighted_rf_unbiased_", dataset, ".RData"))
-  save(results_mean, file = paste0("results/weighted_rf_mean_unbiased_", dataset, ".RData"))
+  save(results, file = paste0(
+    "results/weighted_rf_", dataset, ".RData"
+  ))
+  save(results_mean, file = paste0(
+    "results/weighted_rf_mean_", dataset, ".RData"
+  ))
 
   # Convert results to long format
   results_mean_long <- melt(results_mean, id.vars = "Group.1")
@@ -123,5 +143,5 @@ for (dataset in datasets$datasets) {
       y = "RMSE",
       color = "Model"
     )
-  ggsave(paste0("results/weighted_rf_unbiased_", dataset, ".png"), plot)
+  ggsave(paste0("results/weighted_rf_", dataset, ".png"), plot)
 }
