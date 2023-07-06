@@ -43,3 +43,6 @@ data/
 
 # Ignore linter option
 .lintr
+
+# Ignore results folder
+results/
