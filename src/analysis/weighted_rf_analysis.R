@@ -13,7 +13,7 @@ datasets <- read.table("metadata/datasets.txt", header = TRUE)
 
 #  Load results
 load_datasets <- function(dataset) {
-  results <- get(load(paste0("results/weighted_rf_unbiased_", dataset, ".RData")))
+  results <- get(load(paste0("results/weighted_rf_unbiased_long_only_", dataset, ".RData")))
   results$dataset <- dataset
   return(results)
 }
@@ -21,15 +21,25 @@ results <- lapply(datasets$datasets, load_datasets)
 results <- do.call(rbind, results)
 
 # Calculate RMSE ratios
-results$rmse_rf_weighted_ratio <- results$rmse_rf_weighted / results$rmse_rf
-results$rmse_rf_weighted_shrinkage_ratio <- results$rmse_rf_weighted_shrinkage / results$rmse_rf
+results$rmse_rf_weighted_ratio_1 <- results$rmse_rf_weighted_1 / results$rmse_rf
+results$rmse_rf_weighted_ratio_1_6 <- results$rmse_rf_weighted_1_6 / results$rmse_rf
+results$rmse_rf_weighted_ratio_100 <- results$rmse_rf_weighted_100 / results$rmse_rf
+results$rmse_rf_weighted_shrinkage_ratio_1 <- results$rmse_rf_weighted_shrinkage_1 / results$rmse_rf
+results$rmse_rf_weighted_shrinkage_ratio_1_6 <- results$rmse_rf_weighted_shrinkage_1_6 /
+  results$rmse_rf
+results$rmse_rf_weighted_shrinkage_ratio_100 <- results$rmse_rf_weighted_shrinkage_100 /
+  results$rmse_rf
 
 #  Convert to long format
 results_long <- melt(
   results,
   measure.vars = c(
-    "rmse_rf_weighted_ratio",
-    "rmse_rf_weighted_shrinkage_ratio"
+    "rmse_rf_weighted_ratio_1",
+    "rmse_rf_weighted_shrinkage_ratio_1",
+    "rmse_rf_weighted_ratio_1_6",
+    "rmse_rf_weighted_shrinkage_ratio_1_6",
+    "rmse_rf_weighted_ratio_100",
+    "rmse_rf_weighted_shrinkage_ratio_100"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -50,11 +60,13 @@ plot <- ggplot(
   theme_minimal() +
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  scale_y_continuous(limits = c(0.5, 2)) +
-  scale_x_discrete(labels = c("sample cov", "nls")) +
-  facet_wrap(~n_obs) +
-  stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2)
+  theme(axis.text.x = element_blank()) +
+  scale_fill_manual(values = rep(c("#7CAE00", "#00BFc4", 3))) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_y_continuous(limits = c(0.4, 2)) +
+  scale_x_discrete(labels = c(rep("sample cov", 3), rep("nls", 3))) +
+  facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
+  stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios.pdf", plot)
 
 # Only keep 334_mv dataset
@@ -67,11 +79,13 @@ plot <- ggplot(
   theme_minimal() +
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  # scale_y_continuous(limits = c(0.5, 2)) +
+  theme(axis.text.x = element_blank()) +
+  scale_fill_manual(values = c("#7CAE00", "#00BFc4")) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  # scale_y_continuous(limits = c(0.4, 2)) +
   scale_x_discrete(labels = c("sample cov", "nls")) +
-  facet_wrap(~n_obs) +
-  stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2)
+  facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
+  stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_344_mv.pdf", plot)
 
 #  Plot the weights of the weighted random forest
@@ -128,6 +142,7 @@ weights$variable <- factor(weights$variable, levels = c("weights_sample", "weigh
 ggplot(weights, aes(x = value, fill = variable)) +
   geom_histogram(color = "black") +
   theme_minimal() +
+  scale_fill_manual(values = c("#7CAE00", "#00BFc4")) +
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
   theme(
@@ -135,4 +150,42 @@ ggplot(weights, aes(x = value, fill = variable)) +
     strip.text.x = element_blank()
   ) +
   facet_wrap(~variable, scales = "fixed")
-ggsave("results/weighted_rf_weights.pdf")
+ggsave("results/weighted_rf_weights_long_only_.pdf")
+
+# Compare short/long vs. only long
+# Load results long only
+load_datasets_long <- function(dataset) {
+  results <- get(load(paste0("results/weighted_rf_unbiased_long_only_", dataset, ".RData")))
+  results$dataset <- dataset
+  return(results)
+}
+results_long <- lapply(datasets$datasets, load_datasets_long)
+results_long <- do.call(rbind, results_long)
+# Load results short
+load_datasets_short <- function(dataset) {
+  results <- get(load(paste0("results/weighted_rf_unbiased_", dataset, ".RData")))
+  results$dataset <- dataset
+  return(results)
+}
+results_short <- lapply(datasets$datasets, load_datasets_short)
+results_short <- do.call(rbind, results_short)
+
+# Calculate mean RMSEs
+results_long_mean <- aggregate(
+  results_long[, c(
+    "rmse_naive", "rmse_lm", "rmse_rf",
+    "rmse_rf_weighted", "rmse_rf_weighted_shrinkage"
+  )],
+  by = list(results_long$n_obs),
+  FUN = mean
+)
+results_long_mean$method <- "long"
+results_short_mean <- aggregate(
+  results_short[, c(
+    "rmse_naive", "rmse_lm", "rmse_rf",
+    "rmse_rf_weighted", "rmse_rf_weighted_shrinkage"
+  )],
+  by = list(results_short$n_obs),
+  FUN = mean
+)
+results_short_mean$method <- "short"
