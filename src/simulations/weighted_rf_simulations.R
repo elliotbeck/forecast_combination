@@ -28,11 +28,11 @@ for (dataset in datasets$datasets) {
     rmse_rf_weighted_1 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_1_5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_2 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_2.5 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_2_5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_1 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_1_5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_2 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_2.5 = rep(NA, length(n_obs) * n_sim)
+    rmse_rf_weighted_shrinkage_2_5 = rep(NA, length(n_obs) * n_sim)
   )
 
   # Run simulations
