@@ -2,7 +2,7 @@
 library(CVXR)
 source("src/utils/rmse.R")
 
-weight_optimizer <- function(
+get_performance <- function(
     mean_vector,
     cov_matrix,
     predictions_train,
