@@ -49,3 +49,6 @@ results/
 
 # Ignore cluster output
 nohup.out
+
+# Ignore VS Code settings
+.vscode/
