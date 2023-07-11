@@ -13,7 +13,7 @@ datasets <- read.table("metadata/datasets.txt", header = TRUE)
 # Set simulation parameters
 set.seed(1)
 n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
-n_sim <- 50
+n_sim <- 100
 kappas <- list(1, 1.5, 2, 2.5)
 
 # Run simulations per dataset
@@ -40,7 +40,7 @@ for (dataset in datasets$datasets) {
   for (i in n_obs) {
     for (j in 1:n_sim) {
       # Shuffle rows
-      data <- data[sample(seq_len(nrow(data))), ]
+      data < 50 - data[sample(seq_len(nrow(data))), ]
 
       # Data split
       train_data <- data[1:i, ]
@@ -135,7 +135,10 @@ for (dataset in datasets$datasets) {
   results_long <- melt(results, id.vars = "n_obs")
 
   # Plot mean results df
-  plot <- ggplot(results_mean_long, aes(x = Group.1, y = value, color = variable)) +
+  plot <- ggplot(
+    results_mean_long,
+    aes(x = Group.1, y = value, color = variable)
+  ) +
     geom_line() +
     geom_point() +
     theme_minimal() +
