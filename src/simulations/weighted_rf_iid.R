@@ -5,7 +5,7 @@ library(reshape)
 library(ggplot2)
 source("src/utils/rmse.R")
 source("src/utils/qis.R")
-source("src/utils/optimizer.R")
+source("src/utils/get_performance.R")
 
 # Load names of datasets
 datasets <- read.table("metadata/datasets.txt", header = TRUE)
@@ -14,7 +14,7 @@ datasets <- read.table("metadata/datasets.txt", header = TRUE)
 set.seed(1)
 n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
 n_sim <- 100
-kappas <- list(1, 1.5, 2, 2.5)
+kappas <- list(1, 1.5, 2, 2.5, 100)
 
 # Run simulations per dataset
 for (dataset in datasets$datasets) {
@@ -29,10 +29,12 @@ for (dataset in datasets$datasets) {
     rmse_rf_weighted_1_5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_2 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_2_5 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_100 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_1 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_1_5 = rep(NA, length(n_obs) * n_sim),
     rmse_rf_weighted_shrinkage_2 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_2_5 = rep(NA, length(n_obs) * n_sim)
+    rmse_rf_weighted_shrinkage_2_5 = rep(NA, length(n_obs) * n_sim),
+    rmse_rf_weighted_shrinkage_100 = rep(NA, length(n_obs) * n_sim)
   )
 
   # Run simulations
@@ -40,7 +42,7 @@ for (dataset in datasets$datasets) {
   for (i in n_obs) {
     for (j in 1:n_sim) {
       # Shuffle rows
-      data < 50 - data[sample(seq_len(nrow(data))), ]
+      data <- data[sample(seq_len(nrow(data))), ]
 
       # Data split
       train_data <- data[1:i, ]
@@ -73,7 +75,7 @@ for (dataset in datasets$datasets) {
       # Get rmse for all kappas and sample cov matrix
       results_sample <- sapply(
         kappas,
-        weight_optimizer,
+        get_performance,
         mean_vector = mean_vector,
         cov_matrix = cov_matrix,
         predictions_train = rf_predictions_train_all,
@@ -85,7 +87,7 @@ for (dataset in datasets$datasets) {
       # Get rmse for all kappas and nls cov matrix
       results_nls <- sapply(
         kappas,
-        weight_optimizer,
+        get_performance,
         mean_vector = mean_vector,
         cov_matrix = cov_matrix_shrinkage,
         predictions_train = rf_predictions_train_all,
@@ -109,10 +111,11 @@ for (dataset in datasets$datasets) {
         results_all_test[5],
         results_all_test[6],
         results_all_test[7],
-        results_all_test[8]
+        results_all_test[8],
+        results_all_test[9],
+        results_all_test[10]
       )
       k <- k + 1
-      print(k)
     }
   }
 
