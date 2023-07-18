@@ -12,8 +12,9 @@ datasets <- read.table("metadata/datasets.txt", header = TRUE)
 
 # Set simulation parameters
 set.seed(1)
+num_trees <- 500 # Ranger default
 n_obs <- list(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000)
-n_sim <- 100
+n_sim <- 50
 kappas <- list(1, 1.5, 2, 2.5, 100)
 
 # Run simulations per dataset
@@ -24,17 +25,24 @@ for (dataset in datasets$datasets) {
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    rmse_rf = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_1 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_1_5 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_2 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_2_5 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_100 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_1 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_1_5 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_2 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_2_5 = rep(NA, length(n_obs) * n_sim),
-    rmse_rf_weighted_shrinkage_100 = rep(NA, length(n_obs) * n_sim)
+    rmse_rf = rep(NA, length(n_obs) * n_sim)
+  )
+  results <- cbind(
+    results,
+    data.frame(
+      matrix(
+        rep(NA, length(n_obs) * n_sim * length(kappas)),
+        nrow = length(n_obs) * n_sim,
+        ncol = length(kappas) * 2,
+        dimnames = list(
+          NULL,
+          c(
+            paste0("rmse_rf_weighted_", kappas),
+            paste0("rmse_rf_weighted_shrinkage_", kappas)
+          )
+        )
+      )
+    )
   )
 
   # Run simulations
@@ -48,8 +56,16 @@ for (dataset in datasets$datasets) {
       train_data <- data[1:i, ]
       test_data <- data[(i + 1):(i + 1000), ]
 
+      # Normalize target variable, not allowing leakage
+      norm_param <- list(
+        mean = mean(train_data$target),
+        sd = sd(train_data$target)
+      )
+      train_data$target <- (train_data$target - norm_param$mean) / norm_param$sd
+      test_data$target <- (test_data$target - norm_param$mean) / norm_param$sd
+
       # Random forest benchmark with ranger
-      rf_model <- ranger(target ~ ., data = train_data)
+      rf_model <- ranger(target ~ ., data = train_data, num.trees = num_trees)
       rf_predictions <- predict(rf_model, test_data)$predictions
 
       # Reandom forest predictions and residuals on train data
@@ -104,16 +120,7 @@ for (dataset in datasets$datasets) {
       results[k, ] <- c(
         i,
         rmse(rf_predictions, test_data$target),
-        results_all_test[1],
-        results_all_test[2],
-        results_all_test[3],
-        results_all_test[4],
-        results_all_test[5],
-        results_all_test[6],
-        results_all_test[7],
-        results_all_test[8],
-        results_all_test[9],
-        results_all_test[10]
+        results_all_test
       )
       k <- k + 1
     }
@@ -132,23 +139,4 @@ for (dataset in datasets$datasets) {
   save(results_mean, file = paste0(
     "results/weighted_rf_mean_", dataset, ".RData"
   ))
-
-  # Convert results to long format
-  results_mean_long <- melt(results_mean, id.vars = "Group.1")
-  results_long <- melt(results, id.vars = "n_obs")
-
-  # Plot mean results df
-  plot <- ggplot(
-    results_mean_long,
-    aes(x = Group.1, y = value, color = variable)
-  ) +
-    geom_line() +
-    geom_point() +
-    theme_minimal() +
-    labs(
-      x = "Number of observations",
-      y = "RMSE",
-      color = "Model"
-    )
-  ggsave(paste0("results/weighted_rf_", dataset, ".png"), plot)
 }
