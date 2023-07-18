@@ -17,7 +17,7 @@ get_performance <- function(
     sum(abs(w)) <= kappa
   )
   prob <- Problem(Minimize(objective), constraints)
-  solution <- solve(prob)
+  solution <- solve(prob, num_iter = 100000)
 
   # Weighted prediction
   predictions_weighted_train <- as.matrix(predictions_train) %*% solution$getValue(w)
