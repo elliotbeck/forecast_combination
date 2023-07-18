@@ -52,7 +52,7 @@ get_simulation_dataset_iid <- function(
       train_data <- data[1:i, ]
       test_data <- data[(i + 1):(i + 1000), ]
 
-      # Normalize target variable, not allowing leakage
+      # Standardizing target variable, not allowing leakage
       norm_param <- list(
         mean = mean(train_data$target),
         sd = sd(train_data$target)
