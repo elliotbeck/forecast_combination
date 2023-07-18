@@ -3,6 +3,7 @@ library(ranger)
 library(pmlbr)
 library(reshape)
 library(ggplot2)
+library(parallel)
 source("src/utils/rmse.R")
 source("src/utils/qis.R")
 source("src/utils/get_performance.R")
@@ -14,6 +15,7 @@ datasets <- datasets[
 ]
 datasets <- datasets$dataset
 datasets <- datasets[datasets != "294_satellite_image"] # Not a regression task
+datasets <- datasets[datasets != "503_wind"] # Time series, not iid
 
 # Set simulation parameters
 set.seed(1)
@@ -23,7 +25,7 @@ n_sim <- 50
 kappas <- list(1, 1.5, 2, 2.5, 100)
 
 # Run simulations per dataset
-for (dataset in datasets) {
+simulation_dataset <- function(dataset) {
   # Load data
   data <- fetch_data(dataset)
 
@@ -118,7 +120,6 @@ for (dataset in datasets) {
       )
 
       # Bind all results together
-      results_all_train <- c(results_sample[1, ], results_nls[1, ])
       results_all_test <- c(results_sample[2, ], results_nls[2, ])
 
       #  Store results
@@ -145,3 +146,6 @@ for (dataset in datasets) {
     "results/weighted_rf_mean_", dataset, ".RData"
   ))
 }
+
+# Run simulations in parallel
+mclapply(datasets, simulation_dataset, mc.cores = length(datasets))
