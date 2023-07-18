@@ -8,7 +8,12 @@ source("src/utils/qis.R")
 source("src/utils/get_performance.R")
 
 # Load names of datasets
-datasets <- read.table("metadata/datasets.txt", header = TRUE)
+datasets <- summary_stats[summary_stats$task == "regression", ]
+datasets <- datasets[
+  datasets$n_instances > 6000 & datasets$n_instances < 100000,
+]
+datasets <- datasets$dataset
+datasets <- datasets[datasets != "294_satellite_image"] # Not a regression task
 
 # Set simulation parameters
 set.seed(1)
@@ -18,7 +23,7 @@ n_sim <- 50
 kappas <- list(1, 1.5, 2, 2.5, 100)
 
 # Run simulations per dataset
-for (dataset in datasets$datasets) {
+for (dataset in datasets) {
   # Load data
   data <- fetch_data(dataset)
 

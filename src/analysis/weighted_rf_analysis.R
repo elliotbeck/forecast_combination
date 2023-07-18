@@ -9,7 +9,12 @@ library(CVXR)
 source("src/utils/qis.R")
 
 # Load names of datasets
-datasets <- read.table("metadata/datasets.txt", header = TRUE)
+datasets <- summary_stats[summary_stats$task == "regression", ]
+datasets <- datasets[
+  datasets$n_instances > 6000 & datasets$n_instances < 100000,
+]
+datasets <- datasets$dataset
+datasets <- datasets[datasets != "294_satellite_image"] # Not a regression task
 
 #  Load results
 load_datasets <- function(dataset) {
@@ -17,7 +22,7 @@ load_datasets <- function(dataset) {
   results$dataset <- dataset
   return(results)
 }
-results <- lapply(datasets$datasets, load_datasets)
+results <- lapply(datasets, load_datasets)
 results <- do.call(rbind, results)
 
 #  Calculate ratios compared to random forest
