@@ -14,6 +14,7 @@ datasets <- datasets[
   datasets$n_instances > 6000 & datasets$n_instances < 100000,
 ]
 datasets <- datasets$dataset
+datasets <- datasets[datasets != "503_wind"] # Time series
 datasets <- datasets[datasets != "294_satellite_image"] # Not a regression task
 
 #  Load results
@@ -73,12 +74,13 @@ plot <- ggplot(
   stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios.pdf", plot)
 
-# Only keep 334_mv dataset
-results_long_334_mv <- results_ratios_rf_long[
+# Only keep 344_mv dataset
+results_long_344_mv <- results_ratios_rf_long[
   results_ratios_rf_long$dataset == "344_mv",
 ]
+
 plot <- ggplot(
-  results_long_334_mv,
+  results_long_344_mv,
   aes(x = variable, y = value, fill = variable)
 ) +
   geom_boxplot() +
@@ -105,11 +107,8 @@ results_ratios_rf_long <- melt(
   results_rf_weighted_1,
   measure.vars = c(
     "rmse_rf_weighted_shrinkage_1",
-    "rmse_rf_weighted_1.5",
     "rmse_rf_weighted_shrinkage_1.5",
-    "rmse_rf_weighted_2",
     "rmse_rf_weighted_shrinkage_2",
-    "rmse_rf_weighted_2.5",
     "rmse_rf_weighted_shrinkage_2.5"
   ),
   id.vars = c("dataset", "n_obs"),
@@ -132,7 +131,8 @@ plot <- ggplot(
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
   theme(axis.text.x = element_blank()) +
-  scale_fill_manual(values = c("#00BFc4", rep(c("#7CAE00", "#00BFc4"), 3))) +
+  # ylim(0.8, 1.1) +
+  scale_fill_manual(values = rep("#00BFc4", 4)) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2, fill = "red")
