@@ -50,19 +50,19 @@ get_simulation_dataset_iid <- function(
 
       # Data split
       train_data <- data[1:i, ]
-      test_data <- data[(i + 1):(i + 1000), ]
+      test_data <- data[(i + 1):nrow(data), ]
 
-      # Standardizing target variable, not allowing leakage
+      # Standardizing target variable, not allowing for leakage
       norm_param <- list(
         mean = mean(train_data$target),
         sd = sd(train_data$target)
       )
       train_data$target <- (train_data$target - norm_param$mean) / norm_param$sd
-      test_data$target <- (test_data$target - norm_param$mean) / norm_param$sd
 
       # Random forest benchmark with ranger
       rf_model <- ranger(target ~ ., data = train_data, num.trees = num_trees)
       rf_predictions <- predict(rf_model, test_data)$predictions
+      rf_predictions <- (rf_predictions * norm_param$sd) + norm_param$mean
 
       # Reandom forest predictions and residuals on train data
       rf_predictions_train_all <- predict(
@@ -90,10 +90,10 @@ get_simulation_dataset_iid <- function(
         get_performance,
         mean_vector = mean_vector,
         cov_matrix = cov_matrix,
-        predictions_train = rf_predictions_train_all,
         predictions_test = rf_predictions_test_all,
-        labels_train = train_data$target,
-        labels_test = test_data$target
+        labels_test = test_data$target,
+        mean = norm_param$mean,
+        sd = norm_param$sd
       )
 
       # Get rmse for all kappas and nls cov matrix
@@ -102,14 +102,14 @@ get_simulation_dataset_iid <- function(
         get_performance,
         mean_vector = mean_vector,
         cov_matrix = cov_matrix_shrinkage,
-        predictions_train = rf_predictions_train_all,
         predictions_test = rf_predictions_test_all,
-        labels_train = train_data$target,
-        labels_test = test_data$target
+        labels_test = test_data$target,
+        mean = norm_param$mean,
+        sd = norm_param$sd
       )
 
       # Bind all results together
-      results_all_test <- c(results_sample[2, ], results_nls[2, ])
+      results_all_test <- c(results_sample, results_nls)
 
       #  Store results
       results[k, ] <- c(
