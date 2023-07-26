@@ -137,3 +137,64 @@ plot <- ggplot(
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun.y = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_1.pdf", plot)
+
+# Load mean results and visualize as table
+load_datasets <- function(dataset) {
+  results <- get(load(paste0("results/weighted_rf_mean_", dataset, ".RData")))
+  results$dataset <- dataset
+  return(results)
+}
+results_mean <- lapply(datasets, load_datasets)
+results_mean <- do.call(rbind, results_mean)
+
+# Get rations compared to rf
+results_mean_ratios <- results_mean
+results_mean_ratios[, 2:(ncol(results_mean_ratios) - 1)] <-
+  results_mean_ratios[
+    ,
+    2:(ncol(results_mean_ratios) - 1)
+  ] / results_mean_ratios$rmse_rf
+
+# Reorder datasets according to numbers in strings
+results_mean_ratios <- results_mean_ratios[order(as.numeric(
+  gsub(
+    "([0-9]+).*$", "\\1",
+    results_mean_ratios$dataset
+  )
+)), ]
+
+# Remove rf column
+results_mean_ratios <- results_mean_ratios[, -2]
+
+# Separate shrinkage and non-shrinkage
+results_mean_ratios_shrinkage <- results_mean_ratios[, c(1, 7, 8, 9, 10, 11, 12)]
+results_mean_ratios_shrinkage <- results_mean_ratios_shrinkage[, c(7, 1, 2:6)]
+colnames(results_mean_ratios_shrinkage) <- c("dataset", "n", "w = 1", "w = 1.5", "w = 2", "w = 2.5", "w = 100")
+results_mean_ratios_sample <- results_mean_ratios[, c(1, 2, 3, 4, 5, 6, 12)]
+results_mean_ratios_sample <- results_mean_ratios_sample[, c(7, 1, 2:6)]
+colnames(results_mean_ratios_sample) <- c("dataset", "n", "w = 1", "w = 1.5", "w = 2", "w = 2.5", "w = 100")
+
+# Save as latex table
+print(
+  xtable(
+    results_mean_ratios_sample,
+    digits = c(0, 0, 0, 2, 2, 2, 2, 2),
+    caption = "Mean RMSE ratios of weighted random forest, using the sample covariance, compared to random forest.",
+    label = "tab:weighted_rf_mean_ratios_sample"
+  ),
+  file = "results/weighted_rf_mean_ratios_sample.tex",
+  tabular.environment = "longtable",
+  include.rownames = FALSE
+)
+
+print(
+  xtable(
+    results_mean_ratios_shrinkage,
+    digits = c(0, 0, 0, 2, 2, 2, 2, 2),
+    caption = "Mean RMSE ratios of weighted random forest, using shrinkage, compared to random forest.",
+    label = "tab:weighted_rf_mean_ratios_shrinkage"
+  ),
+  file = "results/weighted_rf_mean_ratios_shrinkage.tex",
+  tabular.environment = "longtable",
+  include.rownames = FALSE
+)
