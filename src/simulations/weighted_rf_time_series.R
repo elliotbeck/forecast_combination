@@ -3,7 +3,7 @@ library(pmlbr)
 library(ranger)
 library(ggplot2)
 source("src/simulations/get_performance.R")
-source("src/utils/rmse.R")
+source("src/utils/mse.R")
 source("src/utils/qis.R")
 
 # Set target variable

@@ -4,7 +4,7 @@ library(pmlbr)
 library(reshape)
 library(ggplot2)
 library(parallel)
-source("src/utils/rmse.R")
+source("src/utils/mse.R")
 source("src/utils/qis.R")
 source("src/simulations/get_performance.R")
 

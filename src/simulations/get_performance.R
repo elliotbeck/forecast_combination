@@ -1,5 +1,5 @@
 # Libraries
-source("src/utils/rmse.R")
+source("src/utils/mse.R")
 source("src/simulations/get_weights.R")
 
 get_performance <- function(
