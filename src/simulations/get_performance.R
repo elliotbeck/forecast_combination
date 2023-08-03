@@ -17,8 +17,8 @@ get_performance <- function(
   predictions_weighted_test <- as.matrix(predictions_test) %*% w
   predictions_weighted_test <- (predictions_weighted_test * sd) + mean
 
-  # Calculate rmse
-  rmse_test <- rmse(predictions_weighted_test, labels_test)
+  # Calculate mse
+  mse_test <- mse(predictions_weighted_test, labels_test)
 
-  return(rmse_test)
+  return(mse_test)
 }

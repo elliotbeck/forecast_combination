@@ -21,7 +21,7 @@ get_simulation_dataset_iid <- function(
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    rmse_rf = rep(NA, length(n_obs) * n_sim)
+    mse_rf = rep(NA, length(n_obs) * n_sim)
   )
   results <- cbind(
     results,
@@ -33,8 +33,8 @@ get_simulation_dataset_iid <- function(
         dimnames = list(
           NULL,
           c(
-            paste0("rmse_rf_weighted_", kappas),
-            paste0("rmse_rf_weighted_shrinkage_", kappas)
+            paste0("mse_rf_weighted_", kappas),
+            paste0("mse_rf_weighted_shrinkage_", kappas)
           )
         )
       )
@@ -84,7 +84,7 @@ get_simulation_dataset_iid <- function(
       cov_matrix <- cov(rf_residuals_train)
       cov_matrix_shrinkage <- qis(rf_residuals_train)
 
-      # Get rmse for all kappas and sample cov matrix
+      # Get mse for all kappas and sample cov matrix
       results_sample <- sapply(
         kappas,
         get_performance,
@@ -96,7 +96,7 @@ get_simulation_dataset_iid <- function(
         sd = norm_param$sd
       )
 
-      # Get rmse for all kappas and nls cov matrix
+      # Get mse for all kappas and nls cov matrix
       results_nls <- sapply(
         kappas,
         get_performance,
@@ -114,7 +114,7 @@ get_simulation_dataset_iid <- function(
       #  Store results
       results[k, ] <- c(
         i,
-        rmse(rf_predictions, test_data$target),
+        mse(rf_predictions, test_data$target),
         results_all_test
       )
       k <- k + 1
