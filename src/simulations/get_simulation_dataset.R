@@ -1,9 +1,10 @@
 # Libraries
 library(ranger)
-library(pmlbr)
+library(OpenML)
 library(reshape)
 library(ggplot2)
 library(parallel)
+library(xgboost)
 source("src/utils/mse.R")
 source("src/utils/qis.R")
 source("src/utils/winham.R")
@@ -17,12 +18,18 @@ get_simulation_dataset_iid <- function(
     n_sim,
     kappas) {
   # Load data
-  data <- fetch_data(dataset)
+  task <- getOMLDataSet(data.name = dataset)
+  data <- task$data
+  colnames(data)[colnames(data) == task$target.features] <- "target"
+  if (dataset == "diamonds") {
+    data <- data[, -c(2, 3, 4)]
+  }
 
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    mse_rf = rep(NA, length(n_obs) * n_sim)
+    mse_rf = rep(NA, length(n_obs) * n_sim),
+    mse_xgb = rep(NA, length(n_obs) * n_sim)
   )
 
   results <- cbind(
@@ -72,6 +79,20 @@ get_simulation_dataset_iid <- function(
       )
       rf_predictions <- predict(rf_model, test_data)$predictions
       rf_predictions <- (rf_predictions * norm_param$sd) + norm_param$mean
+
+      # XGBoost benchmark with xgboost
+      xgb_model <- xgboost(
+        data = as.matrix(subset(train_data, select = -target)),
+        label = train_data$target,
+        nrounds = num_trees,
+        nthread = 1,
+        verbose = 0
+      )
+      xgb_predictions <- predict(
+        xgb_model,
+        as.matrix(subset(test_data, select = -target))
+      )
+      xgb_predictions <- (xgb_predictions * norm_param$sd) + norm_param$mean
 
       # Reandom forest predictions and residuals on train data
       rf_predictions_train_all <- predict(
@@ -134,6 +155,7 @@ get_simulation_dataset_iid <- function(
       results[k, ] <- c(
         i,
         mse(rf_predictions, test_data$target),
+        mse(xgb_predictions, test_data$target),
         mse_bkw,
         mse_winham
       )
