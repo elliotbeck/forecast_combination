@@ -1,4 +1,4 @@
-source("src/utils/mse.R")
+source("src/utils/get_mse.R")
 winham <- function(train_data,
                    test_data,
                    rf_model,
