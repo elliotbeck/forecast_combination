@@ -1,9 +1,7 @@
 # Purpose: Analysis of weighted random forest results
-
 #  Load packages
 library(ggplot2)
 library(reshape)
-library(pmlbr)
 library(ranger)
 library(CVXR)
 source("src/utils/qis.R")
@@ -143,24 +141,17 @@ results_ratios_rf <- aggregate(. ~ n_obs + dataset, results_ratios_rf, mean)
 results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
   , 3:ncol(results_ratios_rf)
 ]^0.5
-results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
-  , 3:ncol(results_ratios_rf)
-] / results_ratios_rf$mse_rf_weighted_1
+results_ratios_rf$mse_rf_weighted_2 <- results_ratios_rf$mse_rf_weighted_2 /
+  results_ratios_rf$mse_rf_weighted_1
+results_ratios_rf$mse_rf_weighted_shrinkage_2 <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
+  results_ratios_rf$mse_rf_weighted_shrinkage_1
 
 #  Convert to long format
 results_ratios_rf_long <- melt(
   results_ratios_rf,
   measure.vars = c(
-    "mse_rf_weighted_1",
-    "mse_rf_weighted_shrinkage_1",
-    "mse_rf_weighted_1.5",
-    "mse_rf_weighted_shrinkage_1.5",
     "mse_rf_weighted_2",
-    "mse_rf_weighted_shrinkage_2",
-    "mse_rf_weighted_2.5",
-    "mse_rf_weighted_shrinkage_2.5",
-    "mse_rf_weighted_100",
-    "mse_rf_weighted_shrinkage_100"
+    "mse_rf_weighted_shrinkage_2"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -184,7 +175,7 @@ plot <- ggplot(
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
   theme(axis.text.x = element_blank()) +
-  scale_fill_manual(values = "#7CAE00") +
+  scale_fill_manual(values = c("#00BFc4", "#7CAE00")) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
   scale_y_continuous(
     limits = c(0.9, 1.05),
@@ -192,7 +183,7 @@ plot <- ggplot(
   ) +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
-ggsave("results/weighted_rf_rmse_ratios_kappa_sample_2_sample_1.pdf", plot)
+ggsave("results/weighted_rf_rmse_ratios_sample_2_sample_1.pdf", plot)
 
 ratios_kappa_2_1_sample <- results_ratios_rf_long[
   results_ratios_rf_long$variable == "mse_rf_weighted_shrinkage_2",
@@ -215,7 +206,7 @@ plot <- ggplot(
   ) +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
-ggsave("results/weighted_rf_rmse_ratios_rf_long_kappa_2_shrinkage_1_sample.pdf", plot)
+ggsave("results/weighted_rf_rmse_ratios_rf_long_shrinkage_2_sample_1.pdf", plot)
 
 
 results_ratios_rf <- results
@@ -330,61 +321,3 @@ plot <- ggplot(
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_winham.pdf", plot)
-
-# Calculate and visualize ratios compared to xgboost
-results_ratios_rf <- results
-results_ratios_rf <- aggregate(. ~ n_obs + dataset, results_ratios_rf, mean)
-results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
-  , 3:ncol(results_ratios_rf)
-]^0.5
-results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
-  , 3:ncol(results_ratios_rf)
-] / results_ratios_rf$mse_rf
-
-#  Convert to long format
-results_ratios_rf_long <- melt(
-  results_ratios_rf,
-  measure.vars = c(
-    "mse_xgb",
-    "mse_rf_weighted_1",
-    "mse_rf_weighted_shrinkage_1",
-    "mse_rf_weighted_1.5",
-    "mse_rf_weighted_shrinkage_1.5",
-    "mse_rf_weighted_2",
-    "mse_rf_weighted_shrinkage_2",
-    "mse_rf_weighted_2.5",
-    "mse_rf_weighted_shrinkage_2.5",
-    "mse_rf_weighted_100",
-    "mse_rf_weighted_shrinkage_100"
-  ),
-  id.vars = c("dataset", "n_obs"),
-)
-
-# Change names of number of observations
-results_ratios_rf_long$n_obs <- paste0("n = ", results_ratios_rf_long$n_obs)
-results_ratios_rf_long$n_obs <- factor(
-  results_ratios_rf_long$n_obs,
-  levels = paste0("n = ", c(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000))
-)
-results_ratios_rf_xgb <- results_ratios_rf_long[
-  results_ratios_rf_long$variable == "mse_rf_weighted_shrinkage_2" |
-    results_ratios_rf_long$variable == "mse_xgb",
-]
-
-plot <- ggplot(
-  results_ratios_rf_xgb,
-  aes(x = variable, y = value, fill = variable)
-) +
-  geom_boxplot() +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  labs(x = NULL, y = NULL) +
-  theme(axis.text.x = element_blank()) +
-  scale_fill_manual(values = c("#7CAE00", "#00BFc4")) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  scale_y_continuous(
-    limits = c(0.8, 1.3),
-  ) +
-  facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
-  stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
-ggsave("results/weighted_rf_rmse_ratios_xgb.pdf", plot)
