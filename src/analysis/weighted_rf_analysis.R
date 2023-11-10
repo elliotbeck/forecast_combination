@@ -222,16 +222,7 @@ results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
 results_ratios_rf_long <- melt(
   results_ratios_rf,
   measure.vars = c(
-    "mse_rf_weighted_1",
-    "mse_rf_weighted_shrinkage_1",
-    "mse_rf_weighted_1.5",
-    "mse_rf_weighted_shrinkage_1.5",
-    "mse_rf_weighted_2",
-    "mse_rf_weighted_shrinkage_2",
-    "mse_rf_weighted_2.5",
-    "mse_rf_weighted_shrinkage_2.5",
-    "mse_rf_weighted_100",
-    "mse_rf_weighted_shrinkage_100"
+    "mse_rf_weighted_shrinkage_2"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -242,12 +233,8 @@ results_ratios_rf_long$n_obs <- factor(
   results_ratios_rf_long$n_obs,
   levels = paste0("n = ", c(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000))
 )
-results_kappa_2_shrinkage_1 <- results_ratios_rf_long[
-  results_ratios_rf_long$variable == "mse_rf_weighted_shrinkage_2",
-]
-
 plot <- ggplot(
-  results_kappa_2_shrinkage_1,
+  results_ratios_rf_long,
   aes(x = variable, y = value, fill = variable)
 ) +
   geom_boxplot() +
@@ -279,16 +266,7 @@ results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
 results_ratios_rf_long <- melt(
   results_ratios_rf,
   measure.vars = c(
-    "mse_rf_weighted_1",
-    "mse_rf_weighted_shrinkage_1",
-    "mse_rf_weighted_1.5",
-    "mse_rf_weighted_shrinkage_1.5",
-    "mse_rf_weighted_2",
-    "mse_rf_weighted_shrinkage_2",
-    "mse_rf_weighted_2.5",
-    "mse_rf_weighted_shrinkage_2.5",
-    "mse_rf_weighted_100",
-    "mse_rf_weighted_shrinkage_100"
+    "mse_rf_weighted_shrinkage_2"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -299,12 +277,8 @@ results_ratios_rf_long$n_obs <- factor(
   results_ratios_rf_long$n_obs,
   levels = paste0("n = ", c(200, 400, 600, 800, 1000, 2000, 3000, 4000, 5000))
 )
-results_ratios_rf_winham <- results_ratios_rf_long[
-  results_ratios_rf_long$variable == "mse_rf_weighted_shrinkage_2",
-]
-
 plot <- ggplot(
-  results_ratios_rf_winham,
+  results_ratios_rf_long,
   aes(x = variable, y = value, fill = variable)
 ) +
   geom_boxplot() +
