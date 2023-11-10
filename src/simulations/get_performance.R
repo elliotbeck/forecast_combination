@@ -1,6 +1,6 @@
 # Libraries
-source("src/utils/mse.R")
-source("src/simulations/get_weights.R")
+source("src/utils/get_mse.R")
+source("src/utils/get_weights.R")
 
 get_performance <- function(
     mean_vector,
