@@ -1,13 +1,14 @@
 # Libraries
 library(ranger)
+library(mlr)
+library(tuneRanger)
 library(OpenML)
 library(reshape)
 library(ggplot2)
 library(parallel)
-library(xgboost)
-source("src/utils/mse.R")
-source("src/utils/qis.R")
-source("src/utils/winham.R")
+source("src/utils/get_mse.R")
+source("src/utils/get_qis.R")
+source("src/utils/get_winham_benchmark.R")
 source("src/simulations/get_performance.R")
 
 # Run simulations per dataset
@@ -25,11 +26,13 @@ get_simulation_dataset_iid <- function(
     data <- data[, -c(2, 3, 4)]
   }
 
+  # Limit data to have 10k observations
+  data <- data[sample(seq_len(nrow(data)), min(nrow(data), 10000)), ]
+
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    mse_rf = rep(NA, length(n_obs) * n_sim),
-    mse_xgb = rep(NA, length(n_obs) * n_sim)
+    mse_rf = rep(NA, length(n_obs) * n_sim)
   )
 
   results <- cbind(
@@ -51,7 +54,6 @@ get_simulation_dataset_iid <- function(
     )
   )
 
-
   # Run simulations
   k <- 1
   for (i in n_obs) {
@@ -63,6 +65,18 @@ get_simulation_dataset_iid <- function(
       train_data <- data[1:i, ]
       test_data <- data[(i + 1):nrow(data), ]
 
+      # # Use tuneRanger to get optimal hyperparameters for rf
+      # task <- makeRegrTask(
+      #   data = train_data,
+      #   target = "target"
+      # )
+      # rf_hyper_opt <- tuneRanger(
+      #   task = task,
+      #   tune.parameters = c("min.node.size"),
+      #   iters = 10,
+      #   num.trees = num_trees
+      # )
+
       # Standardizing target variable, not allowing for leakage
       norm_param <- list(
         mean = mean(train_data$target),
@@ -70,29 +84,18 @@ get_simulation_dataset_iid <- function(
       )
       train_data$target <- (train_data$target - norm_param$mean) / norm_param$sd
 
-      # Random forest benchmark with ranger
       rf_model <- ranger(
         target ~ .,
         data = train_data,
         num.trees = num_trees,
+        mtry = round((ncol(train_data) - 1) / 3), # rf_hyper_opt$recommended.pars$mtry,
+        # min.node.size = # rf_hyper_opt$recommended.pars$min.node.size,
+        replace = TRUE,
         keep.inbag = TRUE
       )
+
       rf_predictions <- predict(rf_model, test_data)$predictions
       rf_predictions <- (rf_predictions * norm_param$sd) + norm_param$mean
-
-      # XGBoost benchmark with xgboost
-      xgb_model <- xgboost(
-        data = as.matrix(subset(train_data, select = -target)),
-        label = train_data$target,
-        nrounds = num_trees,
-        nthread = 1,
-        verbose = 0
-      )
-      xgb_predictions <- predict(
-        xgb_model,
-        as.matrix(subset(test_data, select = -target))
-      )
-      xgb_predictions <- (xgb_predictions * norm_param$sd) + norm_param$mean
 
       # Reandom forest predictions and residuals on train data
       rf_predictions_train_all <- predict(
@@ -155,7 +158,6 @@ get_simulation_dataset_iid <- function(
       results[k, ] <- c(
         i,
         mse(rf_predictions, test_data$target),
-        mse(xgb_predictions, test_data$target),
         mse_bkw,
         mse_winham
       )
