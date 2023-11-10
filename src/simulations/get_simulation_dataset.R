@@ -9,6 +9,7 @@ library(parallel)
 source("src/utils/get_mse.R")
 source("src/utils/get_qis.R")
 source("src/utils/get_winham_benchmark.R")
+source("src/utils/get_cesaro_benchmark.R")
 source("src/simulations/get_performance.R")
 
 # Run simulations per dataset
@@ -32,22 +33,23 @@ get_simulation_dataset_iid <- function(
   # Set up dataframe to store results
   results <- data.frame(
     n_obs = rep(NA, length(n_obs) * n_sim),
-    mse_rf = rep(NA, length(n_obs) * n_sim)
+    mse_rf = rep(NA, length(n_obs) * n_sim),
+    mse_winham = rep(NA, length(n_obs) * n_sim),
+    mse_cesaro = rep(NA, length(n_obs) * n_sim)
   )
 
   results <- cbind(
     results,
     data.frame(
       matrix(
-        rep(NA, length(n_obs) * n_sim * (length(kappas) * 2 + 1)),
+        rep(NA, length(n_obs) * n_sim * (length(kappas) * 2)),
         nrow = length(n_obs) * n_sim,
-        ncol = length(kappas) * 2 + 1,
+        ncol = length(kappas) * 2,
         dimnames = list(
           NULL,
           c(
             paste0("mse_rf_weighted_", kappas),
-            paste0("mse_rf_weighted_shrinkage_", kappas),
-            "mse_rf_winham"
+            paste0("mse_rf_weighted_shrinkage_", kappas)
           )
         )
       )
@@ -65,18 +67,6 @@ get_simulation_dataset_iid <- function(
       train_data <- data[1:i, ]
       test_data <- data[(i + 1):nrow(data), ]
 
-      # # Use tuneRanger to get optimal hyperparameters for rf
-      # task <- makeRegrTask(
-      #   data = train_data,
-      #   target = "target"
-      # )
-      # rf_hyper_opt <- tuneRanger(
-      #   task = task,
-      #   tune.parameters = c("min.node.size"),
-      #   iters = 10,
-      #   num.trees = num_trees
-      # )
-
       # Standardizing target variable, not allowing for leakage
       norm_param <- list(
         mean = mean(train_data$target),
@@ -88,8 +78,7 @@ get_simulation_dataset_iid <- function(
         target ~ .,
         data = train_data,
         num.trees = num_trees,
-        mtry = round((ncol(train_data) - 1) / 3), # rf_hyper_opt$recommended.pars$mtry,
-        # min.node.size = # rf_hyper_opt$recommended.pars$min.node.size,
+        mtry = round((ncol(train_data) - 1) / 3),
         replace = TRUE,
         keep.inbag = TRUE
       )
@@ -154,12 +143,23 @@ get_simulation_dataset_iid <- function(
         rf_predictions_test_all = rf_predictions_test_all
       )
 
+      # Get cesaro benchmark
+      mse_cesaro <- cesaro(
+        train_data = train_data,
+        test_data = test_data,
+        rf_model = rf_model,
+        norm_param = norm_param,
+        rf_predictions_train_all = rf_predictions_train_all,
+        rf_predictions_test_all = rf_predictions_test_all
+      )
+
       #  Store results
       results[k, ] <- c(
         i,
         mse(rf_predictions, test_data$target),
-        mse_bkw,
-        mse_winham
+        mse_winham,
+        mse_cesaro,
+        mse_bkw
       )
       k <- k + 1
     }
