@@ -260,13 +260,19 @@ results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
 ]^0.5
 results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
   , 3:ncol(results_ratios_rf)
-] / results_ratios_rf$mse_rf_winham
+] / results_ratios_rf$mse_winham
+results_ratios_rf$winham <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
+  results_ratios_rf$mse_winham
+results_ratios_rf$cesaro <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
+  results_ratios_rf$mse_cesaro
+
 
 #  Convert to long format
 results_ratios_rf_long <- melt(
   results_ratios_rf,
   measure.vars = c(
-    "mse_rf_weighted_shrinkage_2"
+    "winham",
+    "cesaro"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -286,12 +292,12 @@ plot <- ggplot(
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL) +
   theme(axis.text.x = element_blank()) +
-  scale_fill_manual(values = "#00BFc4") +
+  scale_fill_manual(values = c("#00B9E3", "#619CFF")) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
   scale_y_continuous(
     limits = c(0.8, 1.1),
-    minor_breaks = seq(0.85, 1.05, 0.025)
+    minor_breaks = seq(0.85, 1.1, 0.025)
   ) +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
-ggsave("results/weighted_rf_rmse_ratios_winham.pdf", plot)
+ggsave("results/weighted_rf_rmse_ratios_benchmarks.pdf", plot)
