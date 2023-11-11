@@ -12,7 +12,9 @@ cesaro <- function(train_data,
     na.rm = TRUE
   )
   weights_position <- sort(weights_unnormalized, index.return = TRUE, decreasing = TRUE)$ix
-  weights <- cumsum(rep(1 / length(weights_unnormalized), length(weights_unnormalized)))
+  weights <- cumsum(
+    cumsum(rep(1 / length(weights_unnormalized), length(weights_unnormalized)))
+  )
   weights <- cbind(weights, weights_position)
   weights <- weights[order(weights[, 2]), 1]
   weights <- weights / sum(weights)
