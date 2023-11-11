@@ -252,7 +252,7 @@ plot <- ggplot(
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_kappa_shrinkage_2_shrinkage_1.pdf", plot)
 
-# Calculate and visualize ratios compared to winham et al.
+# Calculate and visualize ratios compared to winham et al. and pham et al.
 results_ratios_rf <- results
 results_ratios_rf <- aggregate(. ~ n_obs + dataset, results_ratios_rf, mean)
 results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
@@ -265,7 +265,6 @@ results_ratios_rf$winham <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
   results_ratios_rf$mse_winham
 results_ratios_rf$cesaro <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
   results_ratios_rf$mse_cesaro
-
 
 #  Convert to long format
 results_ratios_rf_long <- melt(
