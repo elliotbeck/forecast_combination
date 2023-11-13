@@ -258,9 +258,6 @@ results_ratios_rf <- aggregate(. ~ n_obs + dataset, results_ratios_rf, mean)
 results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
   , 3:ncol(results_ratios_rf)
 ]^0.5
-results_ratios_rf[, 3:ncol(results_ratios_rf)] <- results_ratios_rf[
-  , 3:ncol(results_ratios_rf)
-] / results_ratios_rf$mse_winham
 results_ratios_rf$winham <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
   results_ratios_rf$mse_winham
 results_ratios_rf$cesaro <- results_ratios_rf$mse_rf_weighted_shrinkage_2 /
