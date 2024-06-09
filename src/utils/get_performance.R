@@ -7,9 +7,9 @@ get_performance <- function(
     cov_matrix,
     predictions_test,
     labels_test,
-    kappa,
-    mean,
-    sd) {
+    kappa = 2,
+    mean = 0,
+    sd = 1) {
   # Get weights
   w <- get_weights(mean_vector, cov_matrix, kappa)
 

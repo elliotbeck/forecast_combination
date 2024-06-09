@@ -2,16 +2,10 @@
 #  Load packages
 library(ggplot2)
 library(reshape)
-library(ranger)
-library(CVXR)
-source("src/utils/qis.R")
 
 # Load names of datasets
-datasets <- read.csv("metadata/numerical_regression.csv")
-datasets <- datasets[datasets$Remove == 0, ]
-datasets <- datasets[datasets$checks_passed == 1, ]
-datasets <- datasets[!is.na(datasets$Remove), ]
-datasets <- datasets$dataset_name
+datasets <- read.csv("metadata/metadata.csv")
+datasets <- datasets[!datasets$dataset_id == "44146", ]
 
 #  Load results
 load_datasets <- function(dataset) {
@@ -19,7 +13,7 @@ load_datasets <- function(dataset) {
   results$dataset <- dataset
   return(results)
 }
-results <- lapply(datasets, load_datasets)
+results <- lapply(datasets$dataset_id, load_datasets)
 results <- do.call(rbind, results)
 
 #  Calculate ratios compared to random forest
@@ -39,14 +33,14 @@ results_ratios_rf_long <- melt(
   measure.vars = c(
     "mse_rf_weighted_1",
     "mse_rf_weighted_shrinkage_1",
-    "mse_rf_weighted_1.5",
-    "mse_rf_weighted_shrinkage_1.5",
+    # "mse_rf_weighted_1.5",
+    # "mse_rf_weighted_shrinkage_1.5",
     "mse_rf_weighted_2",
-    "mse_rf_weighted_shrinkage_2",
-    "mse_rf_weighted_2.5",
-    "mse_rf_weighted_shrinkage_2.5",
-    "mse_rf_weighted_100",
-    "mse_rf_weighted_shrinkage_100"
+    "mse_rf_weighted_shrinkage_2"
+    # "mse_rf_weighted_2.5",
+    # "mse_rf_weighted_shrinkage_2.5",
+    # "mse_rf_weighted_100",
+    # "mse_rf_weighted_shrinkage_100"
   ),
   id.vars = c("dataset", "n_obs"),
 )
@@ -111,7 +105,7 @@ plot <- ggplot(
   theme(axis.text.x = element_blank()) +
   scale_fill_manual(values = "#00BFc4") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  scale_y_continuous(limits = c(0.7, 1.1), expand = c(0, 0)) +
+  # scale_y_continuous(limits = c(0.6, 1.1), expand = c(0, 0)) +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_kappa_2_shrinkage.pdf", plot)
