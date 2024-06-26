@@ -52,3 +52,5 @@ nohup.out
 
 # Ignore VS Code settings
 .vscode/
+
+metadata/benchmark_total.csv
