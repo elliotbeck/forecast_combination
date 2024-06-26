@@ -1,0 +1,5 @@
+metadata filter=lfs diff=lfs merge=lfs -text
+metadata/regression_table.csv filter=lfs diff=lfs merge=lfs -text
+metadata/benchmark_total.csv filter=lfs diff=lfs merge=lfs -text
+metadata/metadata.csv filter=lfs diff=lfs merge=lfs -text
+metadata/numerical_regression.csv filter=lfs diff=lfs merge=lfs -text
