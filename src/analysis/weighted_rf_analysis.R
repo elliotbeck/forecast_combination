@@ -2,6 +2,8 @@
 #  Load packages
 library(ggplot2)
 library(reshape)
+library(xtable)
+source("src/utils/print_bold.R")
 
 # Load names of datasets
 datasets <- read.csv("metadata/numerical_regression.csv")
@@ -239,10 +241,6 @@ plot <- ggplot(
   theme(axis.text.x = element_blank()) +
   scale_fill_manual(values = "#00BFc4") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  # scale_y_continuous(
-  #   limits = c(0.9, 1.05),
-  #   minor_breaks = seq(0.9, 1.05, 0.025)
-  # ) +
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_shrinkage_2_sample_1.eps", plot)
@@ -292,3 +290,49 @@ plot <- ggplot(
   facet_wrap(~n_obs, nrow = 1, strip.position = "bottom") +
   stat_summary(fun = mean, geom = "point", shape = 23, size = 2, fill = "red")
 ggsave("results/weighted_rf_rmse_ratios_benchmarks.eps", plot)
+
+#  Get RMSE tables for each number of observations
+results_rmse <- results
+results_rmse <- aggregate(. ~ n_obs + dataset, results_rmse, mean)
+results_rmse[, 3:ncol(results_rmse)] <- results_rmse[
+  , 3:ncol(results_rmse)
+]^0.5
+
+results_rmse$dataset_name <- datasets$dataset_name[match(
+  results_rmse$dataset,
+  datasets$dataset_id
+)]
+
+for (n_obs in unique(results_rmse$n_obs)) {
+  results_rmse_subset <- results_rmse[results_rmse$n_obs == n_obs, ]
+  # order alphabetically
+  results_rmse_subset <- results_rmse_subset[
+    order(results_rmse_subset$dataset_name),
+  ]
+  results_rmse_subset <- results_rmse_subset[
+    c("dataset_name", "rf", "nls_2", "wrf", "crf")
+  ]
+  colnames(results_rmse_subset) <- c("Name", "RF", "HRF", "WRF", "CRF")
+  results_rmse_subset[
+    results_rmse_subset$Name %in% c("Ailerons", "elevators"), 2:ncol(results_rmse_subset)
+  ] <- results_rmse_subset[
+    results_rmse_subset$Name %in% c("Ailerons", "elevators"), 2:ncol(results_rmse_subset)
+  ] * 1000
+  table <- xtable(
+    digits = 5,
+    results_rmse_subset,
+    caption = paste0(
+      "Results for all data sets with n = ",
+      n_obs,
+      ". Values for the Ailerons and elevators data sets are scaled by a factor of 1,000 for better readability."
+    )
+  )
+  table <- printbold(
+    table,
+    each = "row",
+    max = FALSE,
+    file = paste0("results/tables/weighted_rf_rmse_", n_obs, ".tex"),
+    include.rownames = FALSE
+  )
+  print(table, type = "latex", file = paste0("results/tables/weighted_rf_rmse_", n_obs, ".tex"))
+}
