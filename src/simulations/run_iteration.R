@@ -1,4 +1,4 @@
-run_iteration <- function(n_obs, data, num_trees, kappas) {
+run_iteration <- function(n_obs, data, num_trees, kappas, include_owrf) {
     # Shuffle rows
     data <- data[sample(seq_len(nrow(data))), ]
 
@@ -20,7 +20,8 @@ run_iteration <- function(n_obs, data, num_trees, kappas) {
         num.trees = num_trees,
         mtry = floor((ncol(train_data) - 1) / 3),
         replace = TRUE,
-        keep.inbag = TRUE
+        keep.inbag = TRUE,
+        min.node.size = if (include_owrf) floor(sqrt(nrow(train_data))) else 5
     )
 
     # Tuned random forest predictions on test data
@@ -93,15 +94,31 @@ run_iteration <- function(n_obs, data, num_trees, kappas) {
         norm_param = norm_param
     )
 
-    #  Store results
-    return(
-        c(
-            n_obs = n_obs,
-            rf = mse(rf_predictions, test_data$target),
-            wrf = mse_winham,
-            crf = mse_cesaro,
-            results_sample,
-            results_nls
+    # Get owrf benchmark
+    if (include_owrf) {
+        mse_owrf <- owrf(
+            x_train = subset(train_data, select = -target),
+            y_train = train_data$target,
+            x_test = subset(test_data, select = -target),
+            y_test = test_data$target,
+            n_tree = num_trees,
+            norm_param = norm_param
         )
+    }
+
+    # Bind results
+    results <- c(
+        n_obs = n_obs,
+        rf = mse(rf_predictions, test_data$target),
+        wrf = mse_winham,
+        crf = mse_cesaro,
+        results_sample,
+        results_nls
     )
+    if (include_owrf) {
+        results <- c(results, owrf = mse_owrf)
+    }
+
+    #  Store results
+    return(results)
 }

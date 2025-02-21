@@ -10,16 +10,12 @@ source("src/utils/get_mse.R")
 source("src/cov_estimators/get_cov_qis.R")
 source("src/utils/get_winham_benchmark.R")
 source("src/utils/get_cesaro_benchmark.R")
+source("src/utils/get_owrf_benchmark.R")
 source("src/utils/get_performance.R")
 source("src/simulations/run_iteration.R")
 
 # Run simulations per dataset
-get_simulation_iid <- function(
-    dataset,
-    num_trees,
-    n_obs,
-    n_sim,
-    kappas) {
+get_simulation_iid <- function(dataset, num_trees, n_obs, n_sim, kappas, include_owrf) {
   # Load data
   task <- getOMLDataSet(data.id = dataset)
   data <- task$data
@@ -39,7 +35,8 @@ get_simulation_iid <- function(
             data = data,
             num_trees = num_trees,
             n_obs = n,
-            kappas = kappas
+            kappas = kappas,
+            include_owrf = TRUE
           )
         },
         mc.cores = 1
@@ -49,7 +46,9 @@ get_simulation_iid <- function(
   )
 
   # Convert nested list to data frame
+  results <- lapply(results, function(x) Filter(is.numeric, x))
   results <- data.frame(do.call(rbind, lapply(results, function(x) do.call(rbind, x))))
+  colMeans(results)^0.5
 
   # Get mean results
   results_mean <- aggregate(

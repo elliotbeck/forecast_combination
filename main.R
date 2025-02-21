@@ -23,5 +23,6 @@ mclapply(
   num_trees = n_trees,
   n_obs = n_obs,
   n_sim = n_sim,
-  kappas = kappas
+  kappas = kappas,
+  include_owrf = FALSE
 )
